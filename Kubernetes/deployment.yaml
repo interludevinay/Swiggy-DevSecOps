@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swiggy-app-pod
+  labels:
+    app: swiggy-app
+spec:
+  replicas: 2
+  selector:
+    matchExpressions:
+      app: swiggy-app
+  template:
+    metadata:
+      labels:
+        app: swiggy-app
+    spec:
+      containers:
+      - name: swiggy-container
+        image: vinayinterlude/swiggy-app:latest
+        ports:
+        - containerPort: 80

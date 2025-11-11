@@ -1,4 +1,3 @@
-
 pipeline{
     agent any
     tools{
@@ -19,21 +18,32 @@ pipeline{
                 git branch: 'main', url: 'https://github.com/interludevinay/Swiggy-DevSecOps.git'
             }
         }
-        stage("Sonarqube Analysis "){
-            steps{
+        stage("Debug Env") {
+            steps {
                 withSonarQubeEnv('sonar-server') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Swiggy \
-                    -Dsonar.projectKey=Swiggy '''
+                    sh 'echo "SONAR_HOST_URL=$SONAR_HOST_URL"'
+                    sh 'echo "SONAR_AUTH_TOKEN=$SONAR_AUTH_TOKEN"'
                 }
             }
         }
-        stage("quality gate"){
-           steps {
-                script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token' 
+        stage("Sonarqube Analysis") {
+            environment {
+                SCANNER_HOME = tool 'sonar-scanner'
+            }
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh """
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=Swiggy \
+                        -Dsonar.projectName=Swiggy \
+                        -Dsonar.sources=src \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_AUTH_TOKEN
+                    """
                 }
-            } 
+            }
         }
+
         stage('Install Dependencies') {
             steps {
                 sh "npm install"
@@ -61,7 +71,7 @@ pipeline{
                 }
             }
         }
-        stage("TRIVY"){
+        stage("TRIVY IMAGE SCAN"){
             steps{
                 sh "trivy image vinayinterlude/swiggy-app:latest > trivyimage.txt" 
             }

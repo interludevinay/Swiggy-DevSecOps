@@ -284,6 +284,9 @@ chmod +x scripts/install_node_exporter.sh
 
 ### 3. Configure Prometheus
 Add in `prometheus.yml`:
+```
+cd /etc/prometheus/
+```
 ```yaml
 global:
   scrape_interval: 15s

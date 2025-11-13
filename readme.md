@@ -1,5 +1,5 @@
 # 🚀 Swiggy DevSecOps - Comprehensive Deployment Pipeline
-Welcome to **Swiggy DevSecOps**, a production-grade, end‑to‑end deployment pipeline using **AWS EC2**, **Docker**, **Jenkins CI/CD**, **Security Scanners**, **Monitoring Tools**, and **Kubernetes (KIND)**. This guide helps you set up a fully automated, secure, and observable system for application deployments.
+Welcome to **Swiggy DevSecOps**, a production-grade, end-to-end deployment pipeline using **AWS EC2**, **Docker**, **Jenkins CI/CD**, **Security Scanners**, **Monitoring Tools**, and **Kubernetes (KIND)**. This guide helps you set up a fully automated, secure, and observable system for application deployments.
 
 ---
 
@@ -8,7 +8,9 @@ Welcome to **Swiggy DevSecOps**, a production-grade, end‑to‑end deployment p
 - **Phase 2:** Security
 - **Phase 3:** CI/CD Automation
 - **Phase 4:** Monitoring & Visualization
-- **Phase 5:** Kubernetes Deployment
+- **Phase 5:** Kubernetes Deployment (KIND)
+- **Note:** KIND vs EKS for ArgoCD Access
+- **Phase 6:** EKS Deployment (Managed Kubernetes)
 - **Troubleshooting**
 - **License**
 
@@ -21,7 +23,8 @@ Welcome to **Swiggy DevSecOps**, a production-grade, end‑to‑end deployment p
 - Connect using SSH.
 
 ### 2. Clone Code & Update Packages
-```bash\sudo apt update -y
+```bash
+sudo apt update -y
 ```
 Clone repository:
 ```bash
@@ -41,9 +44,14 @@ docker --version
 
 ### 4. Build & Run Application in Docker
 ```bash
-docker build -t swiggy .
+docker build \
+    --build-arg VITE_SUPABASE_URL=<supabase-URL> \
+    --build-arg VITE_SUPABASE_ANON_KEY=<your-anon-key> \
+    -t swiggy .
 docker run -d --name swiggy -p 8081:80 swiggy:latest
+
 ```
+Find it on your ```.env``` file
 Delete container:
 ```bash
 docker stop <id> && docker rm <id>
@@ -166,12 +174,27 @@ pipeline {
         stage('TRIVY FS SCAN') { steps { sh "trivy fs . > trivyfs.txt" } }
 
         stage('Docker Build & Push') {
+            environment {
+                VITE_SUPABASE_URL = "https://yourproject.supabase.co"     // Replace with your Supabase URL
+                VITE_SUPABASE_ANON_KEY = credentials('supabaseAnonKey')   // Store anon key in Jenkins credentials
+            }
             steps {
                 script {
                     withDockerRegistry(credentialsId: 'dockerHubCred', toolName: 'docker') {
-                        sh "docker build -t swiggy ."
-                        sh "docker tag swiggy <docker-hub-user>/swiggy-app:latest"
-                        sh "docker push <docker-hub-user>/swiggy-app:latest"
+
+                        // Build Docker image with Supabase environment variables
+                        sh """
+                        docker build \
+                            --build-arg VITE_SUPABASE_URL=${VITE_SUPABASE_URL} \
+                            --build-arg VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY} \
+                            -t swiggy .
+                        """
+
+                        // Tag and push to Docker Hub
+                        sh """
+                        docker tag swiggy <docker-hub-username>/swiggy-app:latest
+                        docker push <docker-hub-username>/swiggy-app:latest
+                        """
                     }
                 }
             }
@@ -256,71 +279,73 @@ http://YOUR-IP:3000
 
 # ☸️ Phase 5 : Kubernetes (KIND + ArgoCD)
 
-### 1. Create KIND Cluster
-Create config file:
-```yaml
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-  - role: control-plane
-    image: kindest/node:v1.29.0
-    extraPortMappings:
-      - containerPort: 30007
-        hostPort: 30007
-      - containerPort: 32054
-        hostPort: 32054
-  - role: worker
-  - role: worker
+### ⚠️ Important Note
+> **If you’re using local deployment with KIND**, ArgoCD runs as a containerized service inside your local cluster. This means **it may not be able to access your GitHub repository URL** (especially private repos) directly. For production-grade and external access, it’s recommended to use **Amazon EKS (Elastic Kubernetes Service)** — a managed Kubernetes service that integrates seamlessly with GitHub and CI/CD tools.
+
+---
+
+# ☁️ Phase 6 : EKS Deployment (Managed Kubernetes)
+
+### 1. Create EKS Cluster using eksctl
+Install `eksctl`:
+```bash
+curl --location "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin
 ```
 
-Create cluster:
+Create Cluster:
 ```bash
-kind create cluster --name devops-cluster --config kind-config.yaml
+eksctl create cluster --name swiggy-cluster --region ap-south-1 --nodes 2 --node-type t3.medium
+```
+Verify:
+```bash
+aws eks update-kubeconfig --region ap-south-1 --name swiggy-cluster
 kubectl get nodes
 ```
 
-### 2. Install ArgoCD
+### 2. Install ArgoCD on EKS
+Create namespace:
 ```bash
 kubectl create namespace argocd
+```
+Install ArgoCD:
+```bash
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
-
-Expose service:
+Expose ArgoCD:
 ```bash
-kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+```
+Retrieve LoadBalancer URL:
+```bash
+kubectl get svc -n argocd argocd-server
 ```
 
-Get password:
+Get ArgoCD password:
 ```bash
-kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d
+kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d; echo
 ```
 
-### 3. Install Helm
-```bash
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-helm version
+Access UI:
+```
+http://<LoadBalancer-DNS>:<port>
 ```
 
-### 4. Install Prometheus & Node Exporter via Helm
-```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-kubectl create namespace monitoring
-```
-Node Exporter:
-```bash
-helm install node-exporter prometheus-community/prometheus-node-exporter -n monitoring
-```
-Prometheus:
-```bash
-helm install prometheus prometheus-community/prometheus -n monitoring
-```
+### 3. Connect ArgoCD with GitHub Repository
+- Login to ArgoCD UI with **admin** credentials
+- Go to **Settings → Repositories → Connect Repo using HTTPS/SSH**
+- Add your GitHub repository URL and credentials/token
 
-### 5. Deploy App With ArgoCD
-- Connect GitHub repo
-- Create Application in ArgoCD
-- Sync & Deploy
-- Access app → `NodeIP:30007`
+### 4. Deploy Application via ArgoCD
+- Create a new **Application** → Set name, project, and sync policy
+- Provide your **GitHub repo URL**, **branch (main)**, and **manifest path**
+- Destination: `https://kubernetes.default.svc`, namespace: `default`
+- Click **Sync** → ArgoCD will automatically deploy the app on EKS
+
+Access the application using LoadBalancer:
+```bash
+kubectl get svc -n default
+```
 
 ---
 
@@ -344,4 +369,3 @@ curl -X POST http://localhost:9090/-/reload
 This project is licensed under the **MIT License**.
 
 💬 *For issues or improvements, feel free to contribute or raise an issue!*
-

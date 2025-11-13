@@ -108,17 +108,60 @@ sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 ```
 
 ### 2. Install Required Plugins
-✅ Eclipse Temurin Installer  
-✅ SonarQube Scanner  
-✅ NodeJs Plugin  
-✅ Email Extension Plugin  
-✅ OWASP Dependency-Check  
-✅ Docker Tools Plugins
+##### Install Required Plugins
+Go to:
+> **Manage Jenkins → Plugins → Available Plugins**
 
-### Configure Tools
-- Install JDK 17, NodeJS 16
-- Configure SonarQube server & Token
-- Configure DockerHub credentials
+Install the following:
+- **Eclipse Temurin Installer**
+- **SonarQube Scanner**
+- **NodeJs Plugin**
+
+##### Configure Java and NodeJS in Global Tool Configuration
+1. Navigate to **Manage Jenkins → Tools**
+2. Install:
+   - **JDK (17)**
+   - **NodeJS (16)**
+3. Click **Apply and Save**
+
+##### Configure SonarQube
+
+1. **Generate Token in SonarQube:**
+   - Go to **Administration → Security → Users → Token**
+   - Create a new token.
+2. **Add Token in Jenkins:**
+   - **Dashboard → Manage Jenkins → Credentials → Add Secret Text**
+   - Add the token and save.
+3. **Configure SonarQube Server:**
+   - **Manage Jenkins → System → SonarQube Servers → Add SonarQube**
+   - Add name, URL, and token.
+4. **Add SonarQube Scanner:**
+   - **Manage Jenkins → Tools → SonarQube Scanner Installation**
+   - Name it `sonar-scanner`.
+
+##### Install OWASP Dependency-Check and Docker Tools
+
+**Install Dependency-Check Plugin:**
+- Go to **Dashboard → Manage Jenkins → Manage Plugins → Available Tab**
+- Search for **OWASP Dependency-Check** → Install without restart.
+
+**Configure Dependency-Check Tool:**
+- **Dashboard → Manage Jenkins → Global Tool Configuration**
+- Add tool name `DP-Check` → Save.
+
+**Install Docker Tools and Plugins:**
+- **Manage Jenkins → Manage Plugins → Available Tab**
+- Install:
+  - Docker
+  - Docker Commons
+  - Docker Pipeline
+  - Docker API
+  - docker-build-step
+- Click **Install without restart**.
+
+**Add DockerHub Credentials:**
+- **Dashboard → Manage Jenkins → Manage Credentials → System → Global credentials (unrestricted)**
+- Add credentials as **Username with Password**.
 
 ### ✅ Jenkins Pipeline Example
 ```groovy
@@ -273,7 +316,31 @@ http://YOUR-IP:3000
 (Default: **admin/admin**)
 
 ### Add Prometheus as Data Source
-- Configuration → Data Sources → Add Prometheus
+**4️⃣ Add Prometheus Data Source:**
+
+To visualize metrics, you need to add a data source in Grafana.
+
+1. Click on the gear icon (⚙️) in the left sidebar to open the **Configuration** menu.
+2. Select **Data Sources**.
+3. Click on **Add data source**.
+4. Choose **Prometheus** as the data source type.
+5. In the **HTTP** section:
+   - Set the URL to `http://localhost:9090` (assuming Prometheus is running locally).
+6. Click **Save & Test** to confirm it’s working.
+
+**5️⃣ Import a Dashboard:**
+
+To quickly visualize metrics:
+
+1. Click on the **+ (plus)** icon in the left sidebar → **Create → Dashboard**.
+2. Choose **Import**.
+3. Enter dashboard code **1860**.
+4. Click **Load**, select the Prometheus data source, and click **Import**.
+
+You now have a ready-to-use Grafana dashboard visualizing Prometheus metrics.
+
+Grafana allows deep customization — you can build new visualizations tailored to your application metrics.
+
 - URL: `http://localhost:9090`
 
 ---

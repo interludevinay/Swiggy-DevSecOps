@@ -52,6 +52,7 @@ docker run -d --name swiggy -p 8081:80 swiggy:latest
 
 ```
 Find it on your ```.env``` file
+
 Delete container:
 ```bash
 docker stop <id> && docker rm <id>
